@@ -1,5 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using WeekMenu;
+using WeekMenu.Interfaces;
+using WeekMenu.Model;
+using WeekMenu.Service;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +13,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<MenuDbContext>();
+builder.Services.AddScoped<IRepository<Product>, ProductRepository>();
 
 var app = builder.Build();
 

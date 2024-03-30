@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using System.Data;
+using WeekMenu.Interfaces;
 using WeekMenu.Model;
 
 namespace WeekMenu.Controllers
@@ -7,11 +8,11 @@ namespace WeekMenu.Controllers
 	[Route("api/[controller]")]
 	public class ProductController : ControllerBase
 	{
-		private MenuDbContext _context;
+		private readonly IRepository<Product> _repository;
 
-		public ProductController(MenuDbContext context)
+		public ProductController(IRepository<Product> repository)
 		{
-			_context = context;
+			_repository = repository;
 		}
 
 		/// <summary>
@@ -26,7 +27,7 @@ namespace WeekMenu.Controllers
 		[ProducesResponseType(StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<Product>> GetProductsList()
 		{
-			var products = await _context.Products.ToListAsync();
+			var products = await _repository.GetListAsync();
 			return Ok(products);
 		}
 
@@ -41,7 +42,8 @@ namespace WeekMenu.Controllers
 		[ProducesResponseType(StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult<Product>> GetProduct([FromRoute] int id)
 		{
-			var product = await _context.Products.SingleOrDefaultAsync(x => x.Id == id);
+			if (id <= 0) { return BadRequest("Wrong id"); }
+			var product = await _repository.GetAsync(id);
 			if (product == null) { return NotFound(); }
 			return Ok(product);
 		}
@@ -54,11 +56,21 @@ namespace WeekMenu.Controllers
 		[ProducesResponseType(StatusCodes.Status201Created)]
 		[ProducesResponseType(StatusCodes.Status400BadRequest)]
 		[ProducesResponseType(StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult> Create([FromBody] Product product)
+		public async Task<ActionResult> Create(Product product)
 		{
 			if (product == null) { return BadRequest(); }
-			await _context.Products.AddAsync(product);
-			await _context.SaveChangesAsync();
+			try
+			{
+				await _repository.CreateAsync(product);
+			}
+			catch (DBConcurrencyException ex)
+			{
+				return NotFound($"It seems like there is no such product: {ex.Message}");
+			}
+			catch (Exception ex)
+			{
+				return Problem(ex.Message, nameof(Create));
+			}
 			return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
 		}
 
@@ -75,12 +87,7 @@ namespace WeekMenu.Controllers
 		public async Task<ActionResult> Modify([FromBody] Product product)
 		{
 			if (product == null) { return BadRequest(); }
-			if (!_context.Products.Any(x => x.Id == product.Id))
-			{
-				return NotFound();
-			}
-			_context.Products.Update(product);
-			await _context.SaveChangesAsync();
+			await _repository.UpdateAsync(product);
 			return Ok(product);
 		}
 
@@ -92,14 +99,20 @@ namespace WeekMenu.Controllers
 		[ProducesResponseType(StatusCodes.Status200OK)]
 		[ProducesResponseType(StatusCodes.Status404NotFound)]
 		[ProducesResponseType(StatusCodes.Status500InternalServerError)]
-		public async Task<ActionResult> Delete([FromRoute]int id)
+		public async Task<ActionResult> Delete([FromRoute] int id)
 		{
-			var productToDelete = await _context.Products.SingleOrDefaultAsync(x => x.Id == id);
-			if (productToDelete == null) {
-				return NotFound();
+			try
+			{
+				await _repository.DeleteAsync(id);
 			}
-			_context.Products.Remove(_context.Products.Single(x => x.Id == id));
-			await _context.SaveChangesAsync();
+			catch (KeyNotFoundException ex)
+			{
+				return NotFound(ex.Message);
+			}
+			catch (Exception ex)
+			{
+				return Problem(ex.Message, nameof(Delete));
+			}
 			return Ok();
 		}
 	}
