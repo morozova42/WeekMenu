@@ -9,10 +9,14 @@ namespace WeekMenu.Controllers
 	public class ProductController : ControllerBase
 	{
 		private readonly IRepository<Product> _repository;
+		private readonly IValidator<Product> _productValidator;
 
-		public ProductController(IRepository<Product> repository)
+		public ProductController(
+			IRepository<Product> repository,
+			IValidator<Product> productValidator)
 		{
 			_repository = repository;
+			_productValidator = productValidator;
 		}
 
 		/// <summary>
@@ -58,7 +62,7 @@ namespace WeekMenu.Controllers
 		[ProducesResponseType(StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult> Create(Product product)
 		{
-			if (product == null) { return BadRequest(); }
+			if (_productValidator.Invalid(product)) { return BadRequest(); }
 			try
 			{
 				await _repository.CreateAsync(product);
@@ -86,7 +90,7 @@ namespace WeekMenu.Controllers
 		[ProducesResponseType(StatusCodes.Status500InternalServerError)]
 		public async Task<ActionResult> Modify([FromBody] Product product)
 		{
-			if (product == null) { return BadRequest(); }
+			if (_productValidator.Invalid(product)) { return BadRequest(); }
 			await _repository.UpdateAsync(product);
 			return Ok(product);
 		}
